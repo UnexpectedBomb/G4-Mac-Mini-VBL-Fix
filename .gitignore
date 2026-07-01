@@ -1,0 +1,9 @@
+# build outputs
+build/
+*.o
+*.obj
+*.xcoff
+*.pef
+
+# macOS cruft
+.DS_Store
