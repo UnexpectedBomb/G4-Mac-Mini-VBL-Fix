@@ -15,6 +15,11 @@
  *
  * Install: drop into System Folder -> Startup Items. Remove: boot holding Shift and
  * delete it. Modifies no driver or system file.
+ *
+ * v2 (2026-08): no-ops under the Classic environment (Mac OS X) so it can't hang an
+ * OS 9 partition booted via Classic (reported by xc68000 on Tiger). Native OS 9
+ * behavior is unchanged from v1 — the guard can only SKIP the fix under Classic,
+ * never suppress it on real hardware.
  */
 
 #include <MacTypes.h>
@@ -24,6 +29,7 @@
 #include <Folders.h>
 #include <Files.h>
 #include <TextUtils.h>
+#include <Gestalt.h>       /* Classic (Mac OS X) environment detection */
 
 #include <string.h>
 
@@ -79,9 +85,23 @@ static void LogError(short refNum, OSErr err)
     FlushVol(NULL, vRefNum);
 }
 
+/* True only when running inside the Classic (Mac OS X) environment, where the boot
+ * display is virtualized and cscSetInterrupt has no real hardware to drive (it hangs
+ * — reported by xc68000 booting an OS 9 partition via Classic on Tiger). On native
+ * OS 9 the 'bbox' selector is undefined, so Gestalt errors and this returns false,
+ * leaving the fix to run exactly as v1. It can only ever SKIP, never suppress-on-real-HW. */
+static Boolean RunningUnderClassic(void)
+{
+    long response;
+    if (Gestalt(gestaltMacOSCompatibilityBoxAttr, &response) != noErr) return false;
+    return (response & (1L << gestaltMacOSCompatibilityBoxPresent)) != 0;
+}
+
 int main(void)
 {
     GDHandle gd; short refNum; OSErr err;
+
+    if (RunningUnderClassic()) return 0;   /* not our environment; the freeze can't occur here */
 
     InitGraf(&qd.thePort);          /* QuickDraw globals (GetMainDevice needs them) */
 

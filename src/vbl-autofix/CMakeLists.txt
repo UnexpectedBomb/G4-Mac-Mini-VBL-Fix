@@ -12,19 +12,19 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
 add_compile_options(-Wno-multichar -Wall)
 
-add_application(VBLAutofix_v1 autofix.c autofix.r TYPE "APPL" CREATOR "VAfx")
+add_application(VBLAutofix_v2 autofix.c autofix.r TYPE "APPL" CREATOR "VAfx")
 if(TARGET retrocrt)
-    add_dependencies(VBLAutofix_v1 retrocrt)
+    add_dependencies(VBLAutofix_v2 retrocrt)
 endif()
 
 # Wrap the raw HFS .dsk in an Apple Partition Map so it mounts on OS 9.
 set(WRAP_APM ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/wrap-apm.py)
 add_custom_command(
-    OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/VBLAutofix_v1.img
+    OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/VBLAutofix_v2.img
     COMMAND /usr/bin/env python3 ${WRAP_APM}
-            ${CMAKE_CURRENT_BINARY_DIR}/VBLAutofix_v1.dsk
-            ${CMAKE_CURRENT_BINARY_DIR}/VBLAutofix_v1.img VBLAutofix_v1
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/VBLAutofix_v1.dsk ${WRAP_APM}
-    COMMENT "Wrapping VBLAutofix_v1.dsk -> .img (mountable on OS 9)" VERBATIM)
-add_custom_target(VBLAutofix_disk ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/VBLAutofix_v1.img)
-add_dependencies(VBLAutofix_disk VBLAutofix_v1_APPL)
+            ${CMAKE_CURRENT_BINARY_DIR}/VBLAutofix_v2.dsk
+            ${CMAKE_CURRENT_BINARY_DIR}/VBLAutofix_v2.img VBLAutofix_v2
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/VBLAutofix_v2.dsk ${WRAP_APM}
+    COMMENT "Wrapping VBLAutofix_v2.dsk -> .img (mountable on OS 9)" VERBATIM)
+add_custom_target(VBLAutofix_disk ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/VBLAutofix_v2.img)
+add_dependencies(VBLAutofix_disk VBLAutofix_v2_APPL)

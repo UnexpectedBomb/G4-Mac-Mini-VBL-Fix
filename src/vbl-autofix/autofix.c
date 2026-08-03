@@ -51,6 +51,7 @@
 #include <Folders.h>
 #include <Files.h>
 #include <Sound.h>
+#include <Gestalt.h>       /* Classic (Mac OS X) environment detection */
 
 #include <string.h>
 
@@ -296,9 +297,19 @@ static void ShowResultWindow(const FixResult *r)
     DisposeWindow(win);
 }
 
+/* See autofix_silent.c: true only under the Classic (Mac OS X) environment, where the
+ * cscSetInterrupt call has no real hardware to drive. Native OS 9 -> false -> unchanged. */
+static Boolean RunningUnderClassic(void)
+{
+    long response;
+    if (Gestalt(gestaltMacOSCompatibilityBoxAttr, &response) != noErr) return false;
+    return (response & (1L << gestaltMacOSCompatibilityBoxPresent)) != 0;
+}
+
 int main(void)
 {
     FixResult r;
+    if (RunningUnderClassic()) return 0;   /* not our environment; skip silently */
     InitGraf(&qd.thePort); InitFonts(); InitWindows(); InitMenus();
     TEInit(); InitDialogs(NULL); InitCursor();
 

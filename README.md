@@ -4,11 +4,15 @@ A tiny Startup-Items app that fixes the intermittent **frozen-cursor startup han
 G4 Mac mini running Mac OS 9 at a **non-native (scaled) resolution**. No driver patch, no
 system-file changes.
 
-> **Status: working fix, seeking testers.** It's confirmed on my mini (revives a frozen
-> boot; harmless on healthy boots). Because the freeze is intermittent (~5% of boots),
-> broad testing across machines is how we build confidence — see
-> [Help test](#help-test-what-to-report). Details of the root cause are in
-> [TECHNICAL.md](TECHNICAL.md).
+> **Status: working fix, community-validated.** Confirmed rock-solid on multiple G4 minis
+> (see the [MacOS9Lives thread](https://macos9lives.com/smforum/index.php?topic=7829)) — one
+> tester ran 30+ restart cycles with zero freezes, and toggling the fix off brought the
+> freezing right back. Broader testing on other displays/GPUs is still welcome — see
+> [Help test](#help-test-what-to-report). Root cause is in [TECHNICAL.md](TECHNICAL.md).
+>
+> **v2** adds a guard so the fix cleanly no-ops under the Classic environment (Mac OS X),
+> so it can't hang an OS 9 partition booted via Classic on Tiger (thanks to xc68000 for the
+> report). Native OS 9 behavior is unchanged from v1.
 
 ---
 
@@ -19,7 +23,7 @@ system-file changes.
 - **Cause:** the Radeon 9200 (`ATY,Bee`) driver disables the display's VBL interrupt during
   the boot-time switch into a scaled mode and intermittently never re-enables it. No VBL =
   frozen cursor.
-- **Fix:** [`VBLFix_v1`](dist/) re-issues the standard "enable VBL interrupt" call on every
+- **Fix:** [`VBLFix_v2`](dist/) re-issues the standard "enable VBL interrupt" call on every
   boot. Drop it in **Startup Items**. It modifies nothing permanent.
 - **Caveat:** this fixes the *common* case (frozen cursor). A *rare* severe variant (garbled
   screen / hard hang right at the switch) happens too early for any app to catch — for
@@ -46,15 +50,15 @@ Mac resource forks) or from [`dist/`](dist/):
 
 | File | Use |
 |------|-----|
-| `VBLFix_v1.img` | **The fix.** Silent everyday version — install this. |
-| `VBLAutofix_v1.img` | **Tester build.** Same fix, but reports via beep + log so you can tell us what it did. |
+| `VBLFix_v2.img` | **The fix.** Silent everyday version — install this. |
+| `VBLAutofix_v2.img` | **Tester build.** Same fix, but reports via beep + log so you can tell us what it did. |
 
 Each `.img` is an Apple Partition Map disk image that mounts on OS 9 with the app (and its
 resource fork) intact. (`.bin` MacBinary versions are included too.)
 
 ## Install
 
-1. Mount `VBLFix_v1.img` on the mini and copy **VBL Fix** into
+1. Mount `VBLFix_v2.img` on the mini and copy **VBL Fix** into
    **System Folder → Startup Items**.
 2. Restart.
 
@@ -84,7 +88,7 @@ have an affected machine:
    roughly how often you get a frozen-cursor startup (e.g. "~1 in 20"). If you never freeze,
    you can't validate the fix — please don't report "no freezes after installing" without a
    before baseline; it's uninterpretable.
-2. **Install the fix** — use **`VBLAutofix_v1`** (the tester build) so it reports what it did.
+2. **Install the fix** — use **`VBLAutofix_v2`** (the tester build) so it reports what it did.
    Beeps: **2** = healthy boot (no-op), **4** = it caught and revived a stuck boot, **5** =
    couldn't revive, **6** = made it worse (should never happen — report immediately), **1** =
    error. Details also go to `VBL Autofix Log` in the System Folder.

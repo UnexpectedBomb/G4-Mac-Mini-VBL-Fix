@@ -11,19 +11,19 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
 add_compile_options(-Wno-multichar -Wall)
 
-add_application(VBLFix_v1 autofix_silent.c autofix_silent.r TYPE "APPL" CREATOR "VFix")
+add_application(VBLFix_v2 autofix_silent.c autofix_silent.r TYPE "APPL" CREATOR "VFix")
 if(TARGET retrocrt)
-    add_dependencies(VBLFix_v1 retrocrt)
+    add_dependencies(VBLFix_v2 retrocrt)
 endif()
 
 # Wrap the raw HFS .dsk in an Apple Partition Map so it mounts on OS 9.
 set(WRAP_APM ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/wrap-apm.py)
 add_custom_command(
-    OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/VBLFix_v1.img
+    OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/VBLFix_v2.img
     COMMAND /usr/bin/env python3 ${WRAP_APM}
-            ${CMAKE_CURRENT_BINARY_DIR}/VBLFix_v1.dsk
-            ${CMAKE_CURRENT_BINARY_DIR}/VBLFix_v1.img VBLFix_v1
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/VBLFix_v1.dsk ${WRAP_APM}
-    COMMENT "Wrapping VBLFix_v1.dsk -> .img (mountable on OS 9)" VERBATIM)
-add_custom_target(VBLFix_disk ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/VBLFix_v1.img)
-add_dependencies(VBLFix_disk VBLFix_v1_APPL)
+            ${CMAKE_CURRENT_BINARY_DIR}/VBLFix_v2.dsk
+            ${CMAKE_CURRENT_BINARY_DIR}/VBLFix_v2.img VBLFix_v2
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/VBLFix_v2.dsk ${WRAP_APM}
+    COMMENT "Wrapping VBLFix_v2.dsk -> .img (mountable on OS 9)" VERBATIM)
+add_custom_target(VBLFix_disk ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/VBLFix_v2.img)
+add_dependencies(VBLFix_disk VBLFix_v2_APPL)

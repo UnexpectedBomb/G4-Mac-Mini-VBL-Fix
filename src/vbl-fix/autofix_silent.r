@@ -15,7 +15,7 @@ resource 'SIZE' (-1) {
 };
 
 resource 'vers' (1, "VBL Fix") {
-    0x01, 0x00, release, 0x00, verUS,
-    "1.0",
-    "1.0, G4 mini VBL re-arm fix (silent)"
+    0x02, 0x00, release, 0x00, verUS,
+    "2.0",
+    "2.0, G4 mini VBL re-arm fix (silent, Classic-safe)"
 };
