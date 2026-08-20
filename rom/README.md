@@ -1,24 +1,29 @@
 # Integrated ROM fix (ATY,RockHopper2)
 
 This builds the VBL re-arm **into the mini's display driver** inside the Mac OS ROM, so it
-happens at the instant of the boot resolution switch, before the desktop draws. See
-[../TECHNICAL.md](../TECHNICAL.md) for the mechanism. The change is tiny: it adds 32 bytes and
-modifies twelve instructions, all inside the `ATY,RockHopper2` driver, and a full dump
-comparison confirms nothing else in the ROM changes.
+happens at the instant of the boot resolution switch, before the desktop draws. It is an
+**optional early-boot head-start, not a standalone fix**: because it fires only at the switch, it
+catches an early VBL drop but not one that happens later in boot, so it is always run together with
+the `VBLFix` app, never instead of it. See [../TECHNICAL.md](../TECHNICAL.md) for the mechanism and
+for why the app (firing at the end of the boot window) is the complete fix. The change is tiny: it
+adds 32 bytes and modifies twelve instructions, all inside the `ATY,RockHopper2` driver, and a full
+dump comparison confirms nothing else in the ROM changes.
 
-> ## Still under test, and the app is not optional
+> ## An optional head-start, and the app is not optional
 >
-> This ROM is **not a complete fix on its own yet.** In testing it has **still missed some
-> boots** (frozen cursor). Because it acts at the switch itself, during the fragile early-boot
-> window, it can catch a boot the app cannot, but it can also miss.
+> This ROM is **not a complete fix on its own, by design.** It re-arms VBL only at the resolution
+> switch, so it catches an early drop but cannot catch one that happens later in boot; those still
+> leave a frozen cursor. In practice it noticeably lowers how often the freeze happens, just not to
+> zero. This is a property of *when* it fires, not something more testing will tune away.
 >
-> **Whenever you run this ROM, keep the `VBLFix` app in Startup Items as a backstop.** The app
-> fires later in startup, after things settle, and reliably recovers any boot the ROM drops.
-> With both in place, a ROM miss becomes a brief auto-recover instead of a hang. Running the ROM
-> without the app means a missed boot leaves you with a frozen cursor and a power-cycle.
+> **Whenever you run this ROM, keep the `VBLFix` app in Startup Items.** The app fires at the end
+> of the boot window, after everything settles, and recovers any drop the ROM did not reach. With
+> both in place, an early drop is re-armed by the ROM and anything later is caught by the app.
+> Running the ROM without the app means a later drop leaves you with a frozen cursor and a
+> power-cycle.
 >
-> Whether the ROM reaches the *severe* variant (garbled screen or hard hang at the switch) that
-> the app can never reach is still unconfirmed. Please report boot counts.
+> The app alone is the complete fix; the ROM is an extra for people who also want the re-arm to
+> fire early. Boot counts are still welcome.
 
 ## Read this first
 
@@ -68,8 +73,8 @@ the ROM around the patched driver is done with the same `tbxi` toolchain.
    another volume.**
 4. In the **target** System Folder, replace `Mac OS ROM` with the patched one. Keep the name
    exactly `Mac OS ROM`.
-5. **Put the `VBLFix` app in that System Folder's Startup Items** as the backstop (see the note
-   at the top).
+5. **Put the `VBLFix` app in that System Folder's Startup Items.** It is the complete fix; the ROM
+   is the optional head-start (see the note at the top).
 6. Set the display to the **scaled** resolution that used to freeze, and reboot from the patched
    System Folder.
 
@@ -80,8 +85,9 @@ That returns you to stock.
 
 ## What to report
 
-Whether it boots cleanly at your scaled resolution, how many boots you ran, the freeze rate
-before versus after, and crucially whether any **hard-hang or garbled** boots still happen. If
-you keep the `VBLAutofix` tester in Startup Items, every **beep 4 (revived)** is a boot the ROM
-missed and the app caught; counting those tells us how much the ROM is really helping. Open an
+Whether it boots cleanly at your scaled resolution, how many boots you ran, and the freeze rate
+before versus after. If you keep the `VBLAutofix` tester in Startup Items, every **beep 4
+(revived)** is a boot the ROM missed and the app caught; counting those tells us how much the ROM
+is really helping. A **hard hang or garbled screen** right at the switch is worth noting too,
+though on our own hardware that turned out to be a failing GPU rather than this bug. Open an
 [issue](../../issues) with your machine, GPU, native and scaled resolutions, and OS 9 build.

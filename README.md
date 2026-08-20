@@ -1,22 +1,27 @@
 # G4 Mac mini OS 9 startup-freeze fix (Radeon 9200 / scaled resolutions)
 
 Fixes the intermittent **frozen-cursor startup hang** on a G4 Mac mini running Mac OS 9 at a
-**non-native (scaled) resolution**. The proven fix is a tiny **Startup-Items app** that changes
-nothing permanent. There is also an **integrated Mac OS ROM** that builds the same fix into the
-display driver, but it is **still under test and is not a complete fix on its own**, so run it
-together with the app.
+**non-native (scaled) resolution**. The fix is a tiny **Startup-Items app** that changes nothing
+permanent and, across hundreds of boots, has never once failed to recover a frozen cursor. There
+is also an optional **integrated Mac OS ROM** that builds the same re-arm into the display driver
+so it fires earlier in startup, but it is a partial early-boot head-start by design, not a
+standalone fix. The app is what makes scaled resolutions reliable; keep it in Startup Items either
+way.
 
-> **Status: the app fix is working and community-validated.** Confirmed rock-solid on
-> multiple G4 minis (see the [MacOS9Lives thread](https://macos9lives.com/smforum/index.php?topic=7829)):
+> **Status: solved. The Startup-Items app is the definitive fix.** It is community-validated and
+> rock-solid on multiple G4 minis (see the [MacOS9Lives thread](https://macos9lives.com/smforum/index.php?topic=7829)):
 > one tester ran 30+ restart cycles with zero freezes, and toggling the fix off brought the
-> freezing right back. Root cause is in [TECHNICAL.md](TECHNICAL.md).
+> freezing right back. In continued daily use it has recovered the cursor on **every** frozen boot
+> across hundreds of restarts, without a single miss. Root cause is in [TECHNICAL.md](TECHNICAL.md).
 >
-> **The integrated ROM is new and still under test (see [rom/](rom/)).** It moves the same
-> re-arm inside the display driver so it acts at the switch itself. In continued testing it has
-> **still missed some boots** (frozen cursor), so it is not a standalone fix yet. **Keep the app
-> in Startup Items as a backstop whenever you run this ROM.** With the app there, a boot the ROM
-> misses becomes a brief auto-recover instead of a hang. Testers very welcome, especially boot
-> counts.
+> **The integrated ROM is an optional early-boot head-start, not a replacement for the app (see
+> [rom/](rom/)).** It moves the same re-arm inside the display driver so it fires at the resolution
+> switch. But the interrupt can drop anywhere from that switch through to the desktop finishing its
+> load (we have seen it freeze as late as the login/Keychain dialog), and a fix that fires once, at
+> the switch, cannot catch a drop that happens later. In practice the ROM noticeably lowers how
+> often the freeze happens, by clearing the drops at or near the switch, but the later ones still
+> get through. The app catches every case because it runs at the tail of that window, in Startup
+> Items. If you flash the ROM, still keep the app in Startup Items.
 
 ---
 
@@ -27,15 +32,15 @@ together with the app.
 - **Cause:** the mini's ROM display driver (`ATY,RockHopper2`) turns the display's VBL
   interrupt off during the boot-time switch into a scaled mode and intermittently never turns
   it back on. No VBL means a frozen cursor.
-- **Fix:** re-issue the standard "enable VBL interrupt" call. The **app** does this at every
-  boot from Startup Items and is the reliable one. The **ROM** does it inside the driver at the
-  instant of the switch, but is still under test and has missed some boots, so run it with the
-  app, not instead of it.
-- **Caveat:** the app reliably fixes the *common* case (frozen cursor). The ROM catches many of
-  those earlier, but in testing it has **still missed some**, so keep the app as a backstop. A
-  *rare* severe variant (garbled screen or hard hang right at the switch) happens too early for
-  any app to catch; whether the ROM reaches it is not yet confirmed. For guaranteed stability,
-  **native resolution is still the only sure thing.**
+- **Fix:** re-issue the standard "enable VBL interrupt" call. The **app** does this at every boot
+  from Startup Items, which run at the very end of the window in which the freeze can occur, so it
+  catches the drop no matter when it happened, and in our use it has never missed. The **ROM** does
+  the same re-arm earlier, inside the driver at the instant of the switch, as an optional head-start.
+- **The window:** the interrupt can drop anywhere from the resolution switch to the desktop
+  finishing its load, then never again until the next reboot. Only a fix that fires at the end of
+  that window catches all of it, which is why the Startup-Items app is complete and a switch-time
+  or fixed-delay ROM fix is only partial. Native resolution never enters the window at all, so it
+  never sees the bug.
 
 ## Do you have this bug?
 
@@ -53,18 +58,20 @@ If you only run at your display's **native** resolution, you almost certainly ne
 
 ## Which fix should I use?
 
-Start with the **app**. It is the proven one. The ROM is an early-acting extra that is still
-being tested.
+**Use the app.** Put it in Startup Items and you are done, it is the complete fix. The ROM is an
+optional extra for people who want the re-arm to also fire earlier in boot; it never replaces the
+app.
 
 | Option | What it is | Best for |
 |--------|------------|----------|
-| **App v1** | The original Startup-Items app. Heavily field-tested (the 30+ restart validation above). | Most people. The most-proven option, nothing permanent. |
-| **App v2** | Same fix, plus a guard that makes it a clean no-op under the Classic environment (Mac OS X), so it cannot wedge an OS 9 partition booted via Classic on Tiger. Native OS 9 behavior is identical to v1. Still accumulating field testing. | Anyone who ever boots this OS 9 install under Classic. |
-| **Integrated ROM** | The same re-arm built into the `ATY,RockHopper2` driver, acting at the switch itself so it fires before the desktop draws. **Still under test: it has missed some boots on its own, so it is not a standalone fix yet.** | People on the standard MacOS9Lives mini ROM who want the earliest-acting fix, run **together with the app as a backstop**. See [rom/](rom/). |
+| **App v1** | The original Startup-Items app. Heavily field-tested (the 30+ restart validation above). | Most people. The proven, complete fix, nothing permanent. |
+| **App v2** | Same fix, plus a guard that makes it a clean no-op under the Classic environment (Mac OS X), so it cannot wedge an OS 9 partition booted via Classic on Tiger. Native OS 9 behavior is identical to v1. | Anyone who ever boots this OS 9 install under Classic. Otherwise interchangeable with v1. |
+| **Integrated ROM** | The same re-arm built into the `ATY,RockHopper2` driver, firing at the switch itself. A partial early-boot head-start by design, not a standalone fix: it catches early drops but misses later ones, so it noticeably lowers the freeze rate without eliminating it, and is always run **with the app**, never instead of it. | Advanced users on the standard MacOS9Lives mini ROM who want the re-arm to fire early as well. See [rom/](rom/). |
 
-The app and the ROM do the same thing at heart. The app is the safe, proven, reversible drop-in
-and the reliable one for the common case. The ROM acts earlier but is still being tested and is
-not yet complete on its own, so treat it as running *with* the app, not instead of it.
+The app and the ROM issue the same re-arm; the difference is *when*. The app fires at the end of
+the freeze window (Startup Items), so it catches every drop and is the reliable, complete,
+reversible fix. The ROM fires at the start of the window (the switch), so it only ever catches the
+early drops. Run the ROM with the app, not instead of it.
 
 ## Download (app)
 
@@ -96,11 +103,11 @@ Fix** out. Nothing else to undo, it is just an app.
 The prebuilt ROM is attached to the **[`rom-v1.0` release](../../releases)**, and the patch and
 full install and recovery notes are in **[rom/](rom/)**.
 
-> **This ROM is still under test, and the app is not optional with it.** In my own testing the
-> ROM has **missed some boots** (frozen cursor), so it is not a complete fix on its own. **Keep
-> the `VBLFix` app in Startup Items as a backstop whenever you run this ROM.** With the app
-> there, any boot the ROM misses becomes a brief auto-recover instead of a hang. Please report
-> your boot counts so we can learn how much the ROM actually helps.
+> **This ROM is an optional head-start, and the app is not optional with it.** By design the ROM
+> re-arms only at the resolution switch, so it cannot catch a VBL drop that happens later in boot;
+> those still show up as a frozen cursor. **Keep the `VBLFix` app in Startup Items whenever you run
+> this ROM.** The app fires at the end of the boot window and recovers any drop the ROM did not
+> reach. The ROM on its own is not a complete fix; the app is.
 
 **Base-ROM caveat:** the prebuilt ROM is the standard MacOS9Lives mini ROM with this single
 driver patch applied. It is safe to drop in **only if that is the ROM you already run**. If your
@@ -110,16 +117,23 @@ recover, are in [rom/](rom/).
 
 ## Limitations
 
-- **The ROM is not yet a complete fix on its own.** In continued testing it has still missed
-  some mild boots (frozen cursor). Run the `VBLFix` app in Startup Items alongside it as a
-  backstop, which recovers any boot the ROM drops. Boot counts, with and without the ROM, are
-  the single most useful thing to report.
-- **Neither fix is guaranteed against the severe variant.** Rarely the scaled switch fails
-  harder, with a garbled screen or hard hang **at the switch**, before Startup Items ever run.
-  Nothing an app can do reaches that. The ROM acts at the switch itself, so it may cover this
-  case, but I have not reproduced a severe boot to confirm it.
-- **Native is still the only guaranteed-stable mode.** Both fixes make scaled resolutions
-  *much* more reliable, but native avoids the failure entirely.
+- **The ROM is a partial head-start by design, not a standalone fix.** It re-arms only at the
+  resolution switch, so it cannot catch a VBL drop that happens later in the boot window; those
+  still freeze the cursor until the app recovers them. It does noticeably lower the overall freeze
+  rate by clearing the drops at or near the switch, and that it helps without eliminating the
+  freeze is itself a sign the drops are spread across the window rather than fixed at the switch.
+  Always run the `VBLFix` app in Startup Items alongside it. This is a property of *when* the ROM
+  fires, not a bug to be tuned out: no single switch-time or fixed-delay re-arm can cover a window
+  whose length varies with the boot volume and with late steps like Keychain and server mounts.
+- **The rare garbled/hard-hang variant was a failing GPU, not this bug.** Early on, one older mini
+  occasionally came up with a garbled screen or a hard hang right at the switch, which no app could
+  reach. That machine later turned out to have serious GPU problems, and since moving to a mini in
+  good health the variant has never reappeared across hundreds of boots, where every freeze has
+  been the recoverable lost-VBL kind that the app revives. We now attribute the garbled/hang
+  behavior to dying display hardware, a separate problem from the VBL race this project fixes.
+- **Native resolution never engages the bug.** The app makes scaled resolutions reliable in
+  practice; native simply never enters the failure window in the first place, because it does not
+  drive the scaler.
 
 ## Help test, what to report
 

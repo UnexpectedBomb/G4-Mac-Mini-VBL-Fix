@@ -73,6 +73,12 @@ vbl=119**, and it is a harmless no-op on a healthy boot (re-enabling an already-
 interrupt). `VBL Fix` simply issues this at every startup from Startup Items. See
 [README.md](README.md).
 
+Why that placement is the *complete* fix is a timing argument, covered in
+[the freeze window](#the-freeze-window-why-the-app-is-complete) below: Startup Items run at the end
+of the interval in which VBL can die, so a single re-arm there is downstream of every possible
+drop. In practice the app has recovered the cursor on every frozen boot across hundreds of restarts
+without a miss.
+
 ## The fix (integrated ROM)
 
 The same re-arm, moved inside the driver so it fires at the switch itself rather than seconds
@@ -81,8 +87,12 @@ at `0x3788`, reached on both the success and failure paths) into an appended cod
 calls the `cscSetInterrupt(csMode=0)` handler at `0x3b50`, runs the one displaced instruction,
 and returns. So the interrupt is re-armed at the moment of the switch, before the desktop draws.
 
-Because it acts that early, it has a real chance at the severe variant below that no
-Startup-Items app can reach, though that has not yet been confirmed on hardware.
+Because it acts that early, it re-arms VBL before the desktop draws, which is useful as a
+head-start. But firing at the switch also bounds what it can do: it re-arms once, at the *start* of
+the window in which VBL can die, so any drop that happens later in boot is past it. That is why the
+ROM is a partial head-start and not a standalone fix, and why the Startup-Items app, firing at the
+*end* of the window, is the one that is complete. See
+[the freeze window](#the-freeze-window-why-the-app-is-complete).
 
 The patch is applied with Elliot Nunn's `cfmtool` (dump the driver `ndrv`, append the cave,
 rebuild), so relocations and offsets are recomputed correctly. It adds 32 bytes and changes
@@ -91,22 +101,39 @@ confirms **only the `RockHopper2` driver changed**; every other boot patch (SysE
 NanoKernel, boot script, and the rest) is byte-for-byte untouched. The patch script and install
 notes are in [rom/](rom/).
 
-## The severity spectrum (what the app cannot reach)
+## The freeze window (why the app is complete)
 
-The scaled switch is a multi-step hardware bring-up (PLL lock, CRTC timing, scaler, framebuffer,
-output, VBL enable). *Where* the race loses sets the severity:
+The key property of this bug is *when* it can strike. The lost interrupt is not fixed to the
+instant of the switch: VBL can be dead anywhere in the interval from the boot resolution switch
+through to the desktop finishing its load. We have watched the cursor move normally well into
+startup and then freeze as late as the login/Keychain dialog. Once the desktop is fully up, it
+never happens again until the next reboot. So the failure lives in a bounded window with a hard,
+event-defined end: **switch ... desktop done.**
 
-- **VBL enable loses** (common): image and system fine, only the periodic interrupt is missing,
-  so the cursor freezes with the system running underneath. **This is what the fix recovers.**
-- **Partial-apply-then-bail:** grey screen, brief flash of life, then freeze.
-- **Scaler or framebuffer botched, or a hang waiting on a lock:** garbled scanout of the desktop
-  plus a hard hang **at the switch**, before Startup Items run.
+That single fact decides which fixes can be complete:
 
-The last two happen too early for any Startup-Items app to intervene; the machine is wedged
-before it loads. Those need a fix inside the driver's switch path itself, which is exactly where
-the integrated ROM acts. Whether re-arming at the switch tail is early enough to also clear the
-partial-apply and hard-hang cases is the open question the ROM is meant to answer, and the main
-thing wider testing can settle. Until then, **native remains the only fully-robust mode.**
+- **The app fires at the end of the window.** Startup Items run as the last phase of boot, after
+  extensions, the login/Keychain step, and any server or alias mounts. A re-arm there is downstream
+  of every point where VBL could have dropped, so it catches all of them in one shot. This is why
+  the app has never missed across hundreds of boots.
+- **The ROM fires at the start of the window.** Re-arming at the switch covers a drop that has
+  already happened by then, but nothing that happens afterward. It is a genuine head-start, not a
+  complete fix: in practice it noticeably lowers the freeze rate by clearing the drops at or near
+  the switch, and the fact that it helps without eliminating the freeze is direct evidence that the
+  drop timing is spread across the window rather than pinned to the switch.
+- **A fixed-delay ROM timer cannot close the gap either.** The window's length is not constant: it
+  varies with the boot volume (an SSD reaches the desktop far sooner than a hard disk) and with
+  variable late steps like Keychain and network/alias mounts. No fixed delay reliably lands after a
+  window whose end moves. Only firing on the boot *event* (Startup Items) does, which is exactly
+  what the app does and what makes it hardware-agnostic.
+
+A note on severity. Early in this work, one older mini occasionally failed harder than a lost
+interrupt: a garbled screen or a true hang right at the switch, wedged before Startup Items run and
+beyond any app. That machine later proved to have serious GPU problems, and after moving development
+to a mini in good health the behavior never returned; across hundreds of boots since, every freeze
+has been the recoverable lost-VBL kind and the app has revived all of them. We now attribute the
+garbled/hang variant to failing display hardware, a separate problem from the VBL race this project
+fixes. With the app in Startup Items, scaled resolution has been as reliable in practice as native.
 
 ## Tooling
 
