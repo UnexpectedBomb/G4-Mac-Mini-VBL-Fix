@@ -2,10 +2,20 @@
 
 ## Symptom
 
-On a G4 Mac mini (A1103) under Mac OS 9.2.2, booting at a **scaled / non-native** resolution
-intermittently (about 5% of boots) leaves the cursor frozen and the desktop dead, needing a
-power-cycle. Booting at the display's **native** resolution is rock-solid (0 failures across
-many boots).
+On a G4 Mac mini (A1103) under Mac OS 9.2.2, booting intermittently (about 5% of boots) leaves the
+cursor frozen, needing a power-cycle. The keyboard stays fully responsive and the machine never
+recovers on its own.
+
+> **Corrected November 2026.** This section previously stated that the fault required a **scaled /
+> non-native** resolution and that native was "rock-solid (0 failures across many boots)." Further
+> testing found the freeze at **native** resolution as well, at a comparable rate and with an
+> identical fingerprint. Resolution is not the trigger.
+>
+> The original native result was almost certainly an **underpowered null** rather than immunity.
+> At a ~5% per-boot rate, a 20-boot batch has a 36% chance of showing zero freezes purely by luck
+> (`0.95^20`). We had already used exactly that arithmetic to reject a premature "the patch works"
+> conclusion on another arm of this investigation, and simply failed to apply it to the native arm.
+> The scaler hypothesis below was built partly on that null, and has been removed accordingly.
 
 ## What is failing
 
@@ -14,10 +24,15 @@ Classic Mac OS drives the cursor and much timed UI work off the display's **vert
 waiting on a VBL task stalls, but the machine is not truly crashed (timers keep running
 underneath).
 
-The startup resolution switch (the screen comes up at one size, then switches to the saved
-scaled mode) goes through the driver's mode-switch path, which **turns the VBL interrupt off**
-as part of reprogramming the display and relies on a *separate* step to turn it back on.
-During boot or restart that re-enable intermittently does not happen, and VBL is left off.
+The **boot-time display mode set** goes through the driver's mode-switch path, which **turns the
+VBL interrupt off** as part of reprogramming the display and relies on a *separate* step to turn
+it back on. During boot or restart that re-enable intermittently does not happen, and VBL is left
+off.
+
+OS 9 applies the saved display mode on every startup, and the driver runs that path **whether or
+not the mode actually differs** from what the screen came up in. That is why the fault appears at
+native resolution as readily as at a scaled one: every boot performs a mode set, so every boot
+takes the disable, and the scaler never had to be involved.
 
 A confirmed diagnostic fingerprint: on a frozen boot, a self-installed **slot-VBL task counts
 0** while a GPU-independent **Time Manager task keeps counting** (the system is alive, VBL is
@@ -31,9 +46,12 @@ This is a **software init-ordering** issue, not heat and not failing hardware:
 
 - It reproduces on a **warm restart** as well as a cold boot (cold rate about 1/19, warm about
   1/6 in small samples), so it is not cold-hardware or a PLL cold-lock.
-- Driving the *same* native-to-scaled switch **after** the machine is up never triggers it
-  (0 starves in 120 in-session switches), so it is specific to the **boot/restart** init path,
-  not the switch operation itself.
+- Driving the *same* mode switch **after** the machine is up never triggers it (0 starves in 120
+  in-session switches), so it is specific to the **boot/restart** init path, not the switch
+  operation itself.
+- It happens at **native** resolution at a comparable rate to a scaled one, so the scaler and the
+  non-native timing path are not involved. What boot has that an in-session switch does not is
+  driver **initialisation**, which is where this lives.
 
 ## In the driver (`ATY,RockHopper2`, RV280)
 
@@ -56,14 +74,35 @@ Disassembling `RockHopper2` (carved from the ROM, with a validated PEF relocatio
   `func@0x3b50`): with `csMode=0` it sets the driver's enabled flag and writes the hardware
   interrupt-enable.
 
-So after a scaled-mode switch the hardware VBL source is off until a `cscSetInterrupt(enable)`
-arrives. In steady state that always shows up and sticks; during boot or restart init it
-intermittently does not, and VBL stays dead, which is the frozen cursor.
+So after any mode set the hardware VBL source is off until a `cscSetInterrupt(enable)` arrives.
+In steady state that always shows up and sticks; during boot or restart init it intermittently
+does not, and VBL stays dead, which is the frozen cursor.
 
 (This is a different mechanism than the earlier `ATY,Bee` reading, where a disabler was called
 explicitly inside `cscSwitchMode`. In `RockHopper2` the switch stops VBL as a side effect of
 the CRTC/PLL reprogram rather than an explicit disable call. The observable failure and the fix
 are the same.)
+
+## Why this driver and not Apple's (hypothesis)
+
+The fault appears specific to the **Radeon 9200 OS 9 driver support** developed for the
+MacOS9Lives community, rather than to ATI drivers on OS 9 generally. Machines running Apple's own
+stock Radeon drivers, such as a G4 MDD on a Radeon 9000 Pro (`ATY,Pheonix`), do not show it.
+
+A plausible explanation, offered as a **hypothesis and not a measurement**: `RockHopper2` is a
+**Mac OS X 10.3.6 `ndrv` retrofitted into the OS 9 ROM**. It was written against OS X's interrupt
+model, not against classic Mac OS's `cscSetInterrupt` / `cscGetInterrupt` contract, in which a
+mode set is expected to leave the VBL interrupt in the state the caller left it. An imbalance
+between `cscSwitchMode`'s unconditional disable and a single enable reachable only from the open
+and `cscSetInterrupt` paths is precisely the shape of defect that such a retrofit would produce,
+and precisely what a driver written natively for OS 9 would be unlikely to carry.
+
+It also fits the divergence fingerprint. `cscGetInterrupt` reporting the interrupt enabled while
+the hardware source is off is what you would expect when the driver's bookkeeping follows one
+operating system's assumptions while the hardware is being driven under another's.
+
+This has not been tested. Confirming it would mean auditing the enable and disable lifecycle
+against Apple's own OS 9 Radeon drivers, which is outside the scope of this project.
 
 ## The fix (app)
 
@@ -133,7 +172,7 @@ beyond any app. That machine later proved to have serious GPU problems, and afte
 to a mini in good health the behavior never returned; across hundreds of boots since, every freeze
 has been the recoverable lost-VBL kind and the app has revived all of them. We now attribute the
 garbled/hang variant to failing display hardware, a separate problem from the VBL race this project
-fixes. With the app in Startup Items, scaled resolution has been as reliable in practice as native.
+fixes. With the app in Startup Items, startup has been reliable in practice at every resolution.
 
 ## Tooling
 

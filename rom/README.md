@@ -75,8 +75,9 @@ the ROM around the patched driver is done with the same `tbxi` toolchain.
    exactly `Mac OS ROM`.
 5. **Put the `VBLFix` app in that System Folder's Startup Items.** It is the complete fix; the ROM
    is the optional head-start (see the note at the top).
-6. Set the display to the **scaled** resolution that used to freeze, and reboot from the patched
-   System Folder.
+6. Reboot from the patched System Folder at whatever resolution you normally run. (Earlier
+   versions of these notes said to pick a scaled mode. Resolution turns out not to affect this
+   bug: it occurs at native resolution just as readily.)
 
 ## Recovery
 
@@ -85,9 +86,9 @@ That returns you to stock.
 
 ## What to report
 
-Whether it boots cleanly at your scaled resolution, how many boots you ran, and the freeze rate
-before versus after. If you keep the `VBLAutofix` tester in Startup Items, every **beep 4
+Whether it boots cleanly, how many boots you ran, and the freeze rate before versus after. If you
+keep the `VBLAutofix` tester in Startup Items, every **beep 4
 (revived)** is a boot the ROM missed and the app caught; counting those tells us how much the ROM
 is really helping. A **hard hang or garbled screen** right at the switch is worth noting too,
 though on our own hardware that turned out to be a failing GPU rather than this bug. Open an
-[issue](../../issues) with your machine, GPU, native and scaled resolutions, and OS 9 build.
+[issue](../../issues) with your machine, GPU, the resolution you run, and OS 9 build.

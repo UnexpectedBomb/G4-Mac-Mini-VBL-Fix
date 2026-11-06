@@ -1,12 +1,11 @@
-# G4 Mac mini OS 9 startup-freeze fix (Radeon 9200 / scaled resolutions)
+# G4 Mac mini OS 9 startup-freeze fix (ATI Radeon / frozen cursor at boot)
 
-Fixes the intermittent **frozen-cursor startup hang** on a G4 Mac mini running Mac OS 9 at a
-**non-native (scaled) resolution**. The fix is a tiny **Startup-Items app** that changes nothing
-permanent and, across hundreds of boots, has never once failed to recover a frozen cursor. There
-is also an optional **integrated Mac OS ROM** that builds the same re-arm into the display driver
-so it fires earlier in startup, but it is a partial early-boot head-start by design, not a
-standalone fix. The app is what makes scaled resolutions reliable; keep it in Startup Items either
-way.
+Fixes the intermittent **frozen-cursor startup hang** on a G4 Mac mini running Mac OS 9. The fix
+is a tiny **Startup-Items app** that changes nothing permanent and, across hundreds of boots, has
+never once failed to recover a frozen cursor. There is also an optional **integrated Mac OS ROM**
+that builds the same re-arm into the display driver so it fires earlier in startup, but it is a
+partial early-boot head-start by design, not a standalone fix. The app is what makes startup
+reliable; keep it in Startup Items either way.
 
 > **Status: solved. The Startup-Items app is the definitive fix.** It is community-validated and
 > rock-solid on multiple G4 minis (see the [MacOS9Lives thread](https://macos9lives.com/smforum/index.php?topic=7829)):
@@ -15,46 +14,61 @@ way.
 > across hundreds of restarts, without a single miss. Root cause is in [TECHNICAL.md](TECHNICAL.md).
 >
 > **The integrated ROM is an optional early-boot head-start, not a replacement for the app (see
-> [rom/](rom/)).** It moves the same re-arm inside the display driver so it fires at the resolution
-> switch. But the interrupt can drop anywhere from that switch through to the desktop finishing its
+> [rom/](rom/)).** It moves the same re-arm inside the display driver so it fires at the boot-time
+> mode set. But the interrupt can drop anywhere from that point through to the desktop finishing its
 > load (we have seen it freeze as late as the login/Keychain dialog), and a fix that fires once, at
-> the switch, cannot catch a drop that happens later. In practice the ROM noticeably lowers how
-> often the freeze happens, by clearing the drops at or near the switch, but the later ones still
-> get through. The app catches every case because it runs at the tail of that window, in Startup
-> Items. If you flash the ROM, still keep the app in Startup Items.
+> the mode set, cannot catch a drop that happens later. In practice the ROM noticeably lowers how
+> often the freeze happens, by clearing the early drops, but the later ones still get through. The
+> app catches every case because it runs at the tail of that window, in Startup Items. If you flash
+> the ROM, still keep the app in Startup Items.
+
+> **Scope correction (November 2026):** this page used to say the bug only affected **scaled
+> (non-native) resolutions**, and recommended native as a guaranteed-stable fallback. **That was
+> wrong.** The freeze happens at the display's **native** resolution too, at a comparable rate and
+> with an identical fingerprint. Resolution is not the trigger and there is no resolution that
+> avoids this. If you previously ruled yourself out because you run native, you are a candidate
+> after all. [TECHNICAL.md](TECHNICAL.md) explains what replaced the old explanation.
 
 ---
 
 ## TL;DR
 
-- **Symptom:** at a scaled resolution, the mini occasionally freezes during startup with a
-  frozen cursor and a dead desktop, needing a power-cycle. Native resolution never does this.
-- **Cause:** the mini's ROM display driver (`ATY,RockHopper2`) turns the display's VBL
-  interrupt off during the boot-time switch into a scaled mode and intermittently never turns
-  it back on. No VBL means a frozen cursor.
+- **Symptom:** the mini occasionally freezes during startup with a frozen cursor, needing a
+  power-cycle. The keyboard stays alive and it never recovers on its own. It happens at **any**
+  resolution, native included.
+- **Cause:** the mini's ROM display driver (`ATY,RockHopper2`) turns the display's VBL interrupt
+  off during the boot-time display mode set, which OS 9 performs on every startup whether or not
+  the mode actually changes, and intermittently never turns it back on. No VBL means a frozen
+  cursor.
 - **Fix:** re-issue the standard "enable VBL interrupt" call. The **app** does this at every boot
   from Startup Items, which run at the very end of the window in which the freeze can occur, so it
   catches the drop no matter when it happened, and in our use it has never missed. The **ROM** does
-  the same re-arm earlier, inside the driver at the instant of the switch, as an optional head-start.
-- **The window:** the interrupt can drop anywhere from the resolution switch to the desktop
+  the same re-arm earlier, inside the driver at the instant of the mode set, as an optional head-start.
+- **The window:** the interrupt can drop anywhere from the boot-time mode set to the desktop
   finishing its load, then never again until the next reboot. Only a fix that fires at the end of
-  that window catches all of it, which is why the Startup-Items app is complete and a switch-time
-  or fixed-delay ROM fix is only partial. Native resolution never enters the window at all, so it
-  never sees the bug.
+  that window catches all of it, which is why the Startup-Items app is complete and a mode-set-time
+  or fixed-delay ROM fix is only partial.
 
 ## Do you have this bug?
 
-You are a candidate if **all** of these are true:
+You are a candidate if **both** of these are true:
 
-- a **G4 Mac mini** (or another Mac on OS 9 with an **ATI Radeon 9200 / RV280**), whose ROM
-  display driver is **`ATY,RockHopper2`**,
-- running at a **scaled / non-native resolution** (for example 1024x640 on a natively
-  1680x1050 panel), and
+- a Mac running **Mac OS 9** on an **ATI Radeon 9200 (RV280)** through the community OS 9 driver
+  support for that chip, whose display driver reports as **`ATY,RockHopper2`**. Confirmed on the
+  **G4 Mac mini**, and reported by the community on a **12-inch iBook G4**. This appears specific
+  to the Radeon 9200 OS 9 driver work rather than to ATI drivers in general: machines running
+  Apple's own stock Radeon drivers, such as a G4 MDD on a Radeon 9000 Pro (`ATY,Pheonix`), do not
+  show it.
 - you get **occasional frozen-cursor hangs during startup**, maybe 1 in 20, needing a
   power-cycle.
 
-If you only run at your display's **native** resolution, you almost certainly never see this
-(native does not engage the scaler and is rock-solid).
+**The fingerprint.** This is what separates it from an unrelated network or Keychain stall: the
+cursor freezes but the **keyboard still works** (you can dismiss a dialog with it), it **never
+recovers on its own**, and running the fix brings the cursor straight back. A hang where the
+keyboard is dead too, and which clears itself after 30 to 45 seconds, is something else.
+
+**Resolution does not matter.** This page previously listed a scaled (non-native) resolution as a
+requirement. It is not one: the freeze occurs at native resolution too, at a comparable rate.
 
 ## Which fix should I use?
 
@@ -131,17 +145,18 @@ recover, are in [rom/](rom/).
   good health the variant has never reappeared across hundreds of boots, where every freeze has
   been the recoverable lost-VBL kind that the app revives. We now attribute the garbled/hang
   behavior to dying display hardware, a separate problem from the VBL race this project fixes.
-- **Native resolution never engages the bug.** The app makes scaled resolutions reliable in
-  practice; native simply never enters the failure window in the first place, because it does not
-  drive the scaler.
+- **No resolution avoids it.** An earlier version of this page recommended native resolution as a
+  guaranteed-stable fallback. That advice was wrong: the freeze happens at native too, at a
+  comparable rate and with the same fingerprint. There is no display setting you can choose to
+  dodge this one. The app is the fix.
 
 ## Help test, what to report
 
 The bug is intermittent, so many machines is the only way to really confirm this. If you have an
 affected machine:
 
-1. **Confirm you have the bug first.** On **stock** (no fix) at your scaled resolution, note
-   roughly how often you get a frozen-cursor startup (for example "~1 in 20"). If you never
+1. **Confirm you have the bug first.** On **stock** (no fix), note roughly how often you get a
+   frozen-cursor startup (for example "~1 in 20"). If you never
    freeze, you cannot validate the fix. Please do not report "no freezes after installing"
    without a before baseline; it is uninterpretable.
 2. **Install the fix.** For the app, use **`VBLAutofix`** (the tester build) so it reports what
@@ -151,9 +166,10 @@ affected machine:
    the ROM, keep `VBLAutofix` in Startup Items too: with the ROM working, healthy boots read as
    no-ops, and every **beep 4 (revived)** is a boot the ROM missed and the app caught. Counting
    those tells us how well the ROM is doing.
-3. **Report back** (open an [issue](../../issues)) with: machine, GPU, display native res, the
-   scaled res you run, OS 9 build; your before freeze rate; after: number of boots and the beeps
-   you saw; and whether any **hard hangs or garbled screens** still happened.
+3. **Report back** (open an [issue](../../issues)) with: machine, GPU, the resolution you run and
+   whether it is your panel's native one, OS 9 build; your before freeze rate; after: number of
+   boots and the beeps you saw; and whether any **hard hangs or garbled screens** still happened.
+   Resolution is no longer thought to be the trigger, but it is still worth recording.
 
 ## Building from source
 
@@ -166,8 +182,14 @@ ROM patch is in [rom/](rom/).
 Huge thanks to **Elliot Nunn** (MacOS9Lives; NanoKernel reverse-engineering and the Mac OS ROM
 toolchain) for pointing this at the GPU's refresh-rate interrupt early on, which is what cracked
 it, and to the **MacOS9Lives** community for the OS 9 builds and patched ROMs that make running
-OS 9 on these machines possible. Thanks also to **n8blz** and **xc68000** for putting the app
-through its paces.
+OS 9 on these machines possible.
+
+Particular thanks to **darthnvader**, whose Radeon 9200 driver work is the reason these machines
+have working OS 9 display support at all. This fix smooths one rough edge in a port that made the
+whole thing possible in the first place; without that work there would be nothing here to run, let
+alone anything to fix.
+
+Thanks also to **n8blz** and **xc68000** for putting the app through its paces.
 
 ## License
 
